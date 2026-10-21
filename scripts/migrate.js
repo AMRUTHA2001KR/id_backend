@@ -29,7 +29,7 @@ const run = async () => {
     for (const file of files) {
       if (applied.has(file)) continue;
 
-      const sql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
+      const sql = fs.readFileSync(path.join(migrationsDir, file), "utf8").split("-- //@UNDO")[0];
       await pool.query("BEGIN");
       await pool.query(sql);
       await pool.query(

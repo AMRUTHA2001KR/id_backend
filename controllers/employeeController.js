@@ -70,6 +70,36 @@ const employeePayload = (body, imageUrl, qrCodeUrl) => ({
   qrCodeUrl,
 });
 
+// vCard so both iOS and Android cameras show a contact card with the details.
+const vcardEscape = (v) =>
+  String(v || "")
+    .trim()
+    .replace(/\\/g, "\\\\")
+    .replace(/\r?\n/g, "\\n")
+    .replace(/([,;])/g, "\\$1");
+
+const qrDetailsText = (b) => {
+  const date = String(b.joiningDate || "").slice(0, 10);
+  const companyId = String(b.companyId || "").trim();
+  const lines = [
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    `FN:${vcardEscape(b.name)}`,
+    `N:${vcardEscape(b.name)};;;;`,
+    "ORG:Inversa Technosoft",
+    `TITLE:${vcardEscape(b.designation)}`,
+    `TEL;TYPE=CELL:${vcardEscape(b.emergencyContact)}`,
+  ];
+  if (companyId.includes("@")) lines.push(`EMAIL:${vcardEscape(companyId)}`);
+  lines.push(
+    `NOTE:${vcardEscape(
+      `Company ID: ${companyId}\nJoining Date: ${date}\nEmergency Contact: ${String(b.emergencyContact || "").trim()}\nBlood Group: ${String(b.bloodGroup || "").trim()}`
+    )}`,
+    "END:VCARD"
+  );
+  return lines.join("\r\n");
+};
+
 const addEmployee = async (req, res) => {
   try {
     const requiredFields = [
@@ -85,15 +115,14 @@ const addEmployee = async (req, res) => {
       return res.status(400).json({ message: `Missing field: ${missing}` });
     }
 
-    const employeeProfileUrl = `${profileBaseUrl(req)}/employee/${req.body.companyId}`;
-
     const qrDir = ensureQrDir();
     const qrFileName = `${req.body.companyId}.png`;
     const qrFilePath = path.join(qrDir, qrFileName);
-    await QRCode.toFile(qrFilePath, employeeProfileUrl, {
-      color: { dark: "#0f172a", light: "#ffffff" },
-      width: 300,
-      margin: 1,
+    await QRCode.toFile(qrFilePath, qrDetailsText(req.body), {
+      color: { dark: "#000000", light: "#ffffff" },
+      width: 600,
+      margin: 4,
+      errorCorrectionLevel: "L",
     });
 
     const serverUrl = publicBaseUrl(req);
@@ -161,11 +190,14 @@ const updateEmployee = async (req, res) => {
       imageUrl = `${publicBaseUrl(req)}/uploads/${req.file.filename}`;
     }
 
-    const profileUrl = `${profileBaseUrl(req)}/employee/${req.body.companyId}`;
     const qrDir = ensureQrDir();
     const qrFileName = `${req.body.companyId}.png`;
     const qrFilePath = path.join(qrDir, qrFileName);
-    await QRCode.toFile(qrFilePath, profileUrl, { width: 300, margin: 1 });
+    await QRCode.toFile(qrFilePath, qrDetailsText(req.body), {
+      width: 600,
+      margin: 4,
+      errorCorrectionLevel: "L",
+    });
 
     const qrCodeUrl = `${publicBaseUrl(req)}/uploads/qrcodes/${qrFileName}`;
     const updated = await updateEmployeeById(
